@@ -52,7 +52,7 @@ namespace WideWorldImporters.Wpf
         {
             e.Handled = true;
 
-            // Keep Track of the previous Sort:
+            // Keep Track of the previous Sort Column and Sort Direction:
             if (e.Column.SortMemberPath == lastSortMemberPath)
             {
                 if (lastSortDirection == ListSortDirection.Ascending)

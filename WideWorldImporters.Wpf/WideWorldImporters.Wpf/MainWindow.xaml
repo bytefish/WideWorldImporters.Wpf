@@ -30,8 +30,8 @@
             <Button 
                 VerticalAlignment="Center"
                 Padding="10"
-                Content="Reset Changes"
-                Command="{Binding RevertChangesCommand, Mode=OneWay}" 
+                Content="Refresh Data"
+                Command="{Binding RefreshDataCommand, Mode=OneWay}" 
                 Margin="8 0" />
         </StackPanel>
 
@@ -51,9 +51,10 @@
             <controls:CustomDataGrid 
                 x:Name="DataGrid"
                       FontSize="16"
-                      CanUserReorderColumns="False"
+                      CanUserReorderColumns="True"
                       CanUserResizeColumns="True"
-                      CanUserSortColumns="{Binding IsModified, Converter={StaticResource BoolToVisibilityConverter}}"
+                      CanUserSortColumns="True"
+                      CanUserDeleteRows="False"
                       AutoGenerateColumns="False"
                       ItemsSource="{Binding Customers}"
                       SelectedItem="{Binding SelectedCustomer, Mode=TwoWay}"

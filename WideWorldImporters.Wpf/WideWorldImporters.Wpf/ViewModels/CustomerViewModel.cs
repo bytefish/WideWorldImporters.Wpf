@@ -2,9 +2,11 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.OData.Client;
+using System;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Threading.Tasks;
 using WideWorldImportersService;
 using Container = WideWorldImportersService.Container;
 
@@ -17,15 +19,18 @@ namespace WideWorldImporters.Wpf.ViewModels
     /// </summary>
     public class CustomerViewModel : ObservableValidator, IEditableObject
     {
-        public Container Context { get; private set; }
+        /// <summary>
+        /// Action, that will be executed when the Entity has been modified.
+        /// </summary>
+        public Action<Customer> OnModified;
 
         /// <summary>
         /// Initializes a new instance of the CustomerViewModel class that wraps a Customer object.
         /// </summary>
-        public CustomerViewModel(Container context, Customer model)
+        public CustomerViewModel(Customer model, Action<Customer> onModified)
         {
-            Context = context;
             Model = model;
+            OnModified = onModified;
         }
 
         /// <summary>
@@ -150,11 +155,14 @@ namespace WideWorldImporters.Wpf.ViewModels
             get => Model.LastEditedByNavigation.PreferredName;
         }
 
+        /// <summary>
+        /// Sets the Entity as Modified.
+        /// </summary>
         public void SetModified()
         {
             IsModified = true;
 
-            Context.ChangeState(_model, EntityStates.Modified);
+            OnModified(_model);
         }
 
         /// <summary>

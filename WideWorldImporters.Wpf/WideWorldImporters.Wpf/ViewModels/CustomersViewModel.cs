@@ -97,67 +97,6 @@ namespace WideWorldImporters.Wpf.ViewModels
         }
 
         public List<int> PageSizes => new() { 5, 10, 20, 50, 100 };
-                        
-        private DataServiceQuery<Customer> GetDataServiceQuery(SortColumn[] sortColumns, int pageNumber, int pageSize)
-        {
-            var query = _context.Customers.Expand(x => x.LastEditedByNavigation)
-                .WithPagination(pageNumber, pageSize)
-                .SortBy(sortColumns)
-                .IncludeCount(true);
-
-            return (DataServiceQuery<Customer>) query;
-        }
-
-        private async Task GetCustomersAsync(int pageNumber, int pageSize, SortColumn[] sortColumns, CancellationToken cancellationToken)
-        {
-            try
-            {
-                // Signal, that we are loading the data:
-                IsLoading = true;
-
-                // Query the OData Endpoint:
-                var response = (QueryOperationResponse<Customer>) await GetDataServiceQuery(sortColumns, pageNumber, pageSize).ExecuteAsync(cancellationToken);
-
-                if (response.Error != null)
-                {
-                    return;
-                }
-
-                // Do not try to merge the Customers, we will just override them:
-                Customers.Clear();
-
-                foreach (var c in response.ToList())
-                {
-                    Customers.Add(new CustomerViewModel(_context, c));
-                }
-
-                // Once we have loaded the data, run the initial validation so the Grid refreshes:
-                foreach(var c in Customers)
-                {
-                    c.Validate();
-                }
-
-                // Adjust the Page number and Page count with the Query results:
-                PageNumber = pageNumber;
-                PageCount = (int)response.Count / pageSize;
-
-                // Notify all Event Handlers:
-                FirstPageCommand.NotifyCanExecuteChanged();
-                PreviousPageCommand.NotifyCanExecuteChanged();
-                NextPageCommand.NotifyCanExecuteChanged();
-                LastPageCommand.NotifyCanExecuteChanged();
-            } 
-            catch(Exception e)
-            {
-                MessageBox.Show(
-                    caption: "Unexpected Error",
-                    messageBoxText: $"Load customers failed (Details = {e.Message})");
-            }
-            finally
-            {
-                IsLoading = false;
-            }
-        }
 
         public CustomersViewModel()
         {
@@ -194,20 +133,20 @@ namespace WideWorldImporters.Wpf.ViewModels
                 (ct) => GetCustomersAsync(_pageCount, _pageSize, _sortColumns, ct),
                 () => _pageNumber != _pageCount);
 
-            RevertChangesCommand = new AsyncRelayCommand(
+            RefreshDataCommand = new AsyncRelayCommand(
                 (ct) => GetCustomersAsync(_pageNumber, _pageSize, _sortColumns, ct),
                 () => true);
 
             SaveChangesCommand = new AsyncRelayCommand(
                 (ct) => SaveChangesAsync(ct),
-                () => true);
+                () => Customers.Any(x => x.IsModified));
 
             Refresh();
         }
 
         public IAsyncRelayCommand SaveChangesCommand { get; }
 
-        public IAsyncRelayCommand RevertChangesCommand { get; }
+        public IAsyncRelayCommand RefreshDataCommand { get; }
 
         public IAsyncRelayCommand FirstPageCommand { get; }
 
@@ -223,11 +162,76 @@ namespace WideWorldImporters.Wpf.ViewModels
             FirstPageCommand.Execute(null);
         }
 
+
+        private async Task GetCustomersAsync(int pageNumber, int pageSize, SortColumn[] sortColumns, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Signal, that we are loading the data:
+                IsLoading = true;
+
+                // Query the OData Endpoint:
+                var response = (QueryOperationResponse<Customer>)await GetDataServiceQuery(sortColumns, pageNumber, pageSize).ExecuteAsync(cancellationToken);
+
+                if (response.Error != null)
+                {
+                    return;
+                }
+
+                // Do not try to merge the Customers, we will just override them:
+                Customers.Clear();
+
+                foreach (var c in response.ToList())
+                {
+                    Customers.Add(new CustomerViewModel(c, SetModified));
+                }
+
+                // Once we have loaded the data, run the initial validation so the Grid refreshes:
+                foreach (var c in Customers)
+                {
+                    c.Validate();
+                }
+
+                // Adjust the Page number and Page count with the Query results:
+                PageNumber = pageNumber;
+                PageCount = (int)response.Count / pageSize;
+
+                // Notify all Event Handlers:
+                FirstPageCommand.NotifyCanExecuteChanged();
+                PreviousPageCommand.NotifyCanExecuteChanged();
+                NextPageCommand.NotifyCanExecuteChanged();
+                LastPageCommand.NotifyCanExecuteChanged();
+                RefreshDataCommand.NotifyCanExecuteChanged();
+                SaveChangesCommand.NotifyCanExecuteChanged();
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(
+                    caption: "Unexpected Error",
+                    messageBoxText: $"Load customers failed (Details = {e.Message})");
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        private DataServiceQuery<Customer> GetDataServiceQuery(SortColumn[] sortColumns, int pageNumber, int pageSize)
+        {
+            var query = _context.Customers.Expand(x => x.LastEditedByNavigation)
+                .WithPagination(pageNumber, pageSize)
+                .SortBy(sortColumns)
+                .IncludeCount(true);
+
+            return (DataServiceQuery<Customer>)query;
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);
+
                 await GetCustomersAsync(_pageNumber, _pageSize, _sortColumns, cancellationToken);
             } 
             catch(Exception e)
@@ -235,7 +239,18 @@ namespace WideWorldImporters.Wpf.ViewModels
                 MessageBox.Show(
                     caption: "Unexpected Error",
                     messageBoxText: $"Save customers failed (Details = {e.Message})");
+            } 
+            finally
+            {
+                SaveChangesCommand.NotifyCanExecuteChanged();
             }
+        }
+
+        private void SetModified(Customer customer)
+        {
+            _context.ChangeState(customer, EntityStates.Modified);
+
+            SaveChangesCommand.NotifyCanExecuteChanged();
         }
     }
 }
